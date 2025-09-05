@@ -1,10 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
-const socketAuth = require('./utils/socketAuth');
+const { socketAuth } = require('./utils/socketAuth');
 const authRoutes = require('./routes/auth');
 const messageRoutes = require('./routes/messages');
 const userRoutes = require('./routes/users');
@@ -20,10 +19,21 @@ const io = new Server(server, {
   }
 });
 
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
-  credentials: true
-}));
+// Basic CORS middleware (without external package)
+app.use((req, res, next) => {
+  const origin = process.env.CLIENT_URL || "http://localhost:3000";
+  res.header('Access-Control-Allow-Origin', origin);
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
 app.use(express.json());
 
 mongoose.connect(process.env.MONGODB_URI)
