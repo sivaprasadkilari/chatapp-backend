@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ChatApp - Modern UI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+      font-family: 'Roboto', sans-serif;
+      height: 100vh;
+      color: #222;
+      overflow: hidden;
+    }
+    .chat-container {
+      width: 98vw;
+      max-width: 950px;
+      height: 90vh;
+      margin: 2vh auto;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 6px 48px rgba(40,40,90,0.2);
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+    }
+    .sidebar {
+      width: 220px;
+      background: #223355;
+      color: #fff;
+      padding: 24px 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      min-width: 180px;
+    }
+    .sidebar h3 {
+      margin-top: 0;
+    }
+    .users {
+      margin-top: 16px;
+      width: 100%;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .users li {
+      margin: 6px 0;
+      padding: 5px 10px;
+      border-radius: 7px;
+      background: rgba(255,255,255,0.17);
+    }
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background: linear-gradient(90deg,#457fca,#5691c8);
+      color: white;
+      padding: 14px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #f4f8fb;
+      padding: 18px 24px;
+      overflow-y: auto;
+    }
+    .message {
+      display: flex;
+      align-items: flex-end;
+      margin: 6px 0;
+    }
+    .message.self {
+      flex-direction: row-reverse;
+      text-align: right;
+    }
+    .bubble {
+      padding: 8px 14px;
+      background: #e3eefc;
+      border-radius: 16px;
+      display: inline-block;
+      max-width: 68%;
+      margin: 0 8px;
+      font-size: 1.07em;
+    }
+    .message.self .bubble {
+      background: #77aaff;
+      color: white;
+    }
+    .meta {
+      font-size: 11px;
+      color: #999;
+    }
+    .input-form {
+      background: #fff;
+      padding: 16px 20px;
+      border-top: 1px solid #eaeaea;
+      display: flex;
+      align-items: center;
+    }
+    .input-form input,
+    .input-form button {
+      margin: 0 6px;
+      font-size: 1em;
+    }
+    .input-form input {
+      flex: 1;
+      padding: 9px 12px;
+      border: 1px solid #ccd;
+      outline: none;
+      border-radius: 7px;
+      margin-right: 12px;
+    }
+    .input-form button {
+      background: #457fca;
+      color: white;
+      border: none;
+      border-radius: 7px;
+      padding: 8px 22px;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-size: 1em;
+    }
+    .input-form button:hover {
+      background: #355170;
+    }
+    .auth-panel {
+      background: rgba(255,255,255,0.95);
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .auth-form {
+      background: white;
+      border-radius: 10px;
+      padding: 32px 30px;
+      box-shadow: 0 2px 20px rgba(35,75,145,0.08);
+      width: 100%;
+      max-width: 370px;
+      text-align: center;
+    }
+    .auth-form h2 {
+      margin-top: 0;
+      color: #1a224b;
+    }
+    .toggle-link {
+      color: #457fca;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-left: 4px;
+    }
+    @media (max-width: 700px) {
+      .chat-container { flex-direction: column !important; min-width: 95vw;}
+      .sidebar { width: 100vw; flex-direction: row; padding: 14px;}
+      .sidebar h3 { margin-right: 12px;}
+      .main { width: 100vw; }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-panel" id="authPanel">
+    <form class="auth-form" id="authForm">
+      <h2 id="authTitle">Login</h2>
+      <input type="text" id="username" placeholder="Username" required autocomplete="username" /><br><br>
+      <input type="password" id="password" placeholder="Password" required autocomplete="current-password" /><br><br>
+      <button type="submit" id="authBtn">Login</button>
+      <p style="margin-top:10px;">No account? <span class="toggle-link" onclick="toggleAuth()">Register here</span></p>
+      <div id="authError" style="color:#c00;min-height:28px;"></div>
+    </form>
+  </div>
+  <div class="chat-container" style="display:none;" id="chatContainer">
+    <div class="sidebar">
+      <h3>Users</h3>
+      <ol class="users" id="userList"></ol>
+    </div>
+    <div class="main">
+      <div class="header">
+        <span>ChatApp: <input id="roomId" value="room1" style="padding:4px 10px;border-radius:9px;border:0;width:110px;text-align:center;background:#e3eefc;color: #234;width:110px;font-size:1em;">
+        <button onclick="joinRoom()">Join</button></span>
+        <span id="welcome"></span>
+      </div>
+      <div class="chat-area" id="chatArea"></div>
+      <form class="input-form" id="msgForm" autocomplete="off">
+        <input id="msgInput" autocomplete="off" placeholder="Type your message" />
+        <button>Send</button>
+      </form>
+    </div>
+  </div>
+  <script>
+    // ========== Auth Logic ==========
+    let token = ""
+    let usernameGlobal = ""
+    const api = "http://localhost:5000"
+    let registering = false
+    function toggleAuth() {
+      registering = !registering
+      document.getElementById('authTitle').innerText = registering ? 'Register' : 'Login'
+      document.getElementById('authBtn').innerText = registering ? 'Register' : 'Login'
+      document.getElementById('authError').innerText = ''
+    }
+    document.getElementById('authForm').onsubmit = async e => {
+      e.preventDefault()
+      const username = document.getElementById('username').value
+      const password = document.getElementById('password').value
+      let url = api + '/api/auth/' + (registering ? 'register' : 'login')
+      let body = { username, password }
+      let res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      })
+      let data = await res.json()
+      if(registering && data.username){
+        toggleAuth()
+        document.getElementById('authError').innerText = 'Registered! Now log in.'
+      } else if(!registering && data.token){
+        token = data.token
+        usernameGlobal = username
+        document.getElementById('authPanel').style.display='none'
+        document.getElementById('chatContainer').style.display=''
+        document.getElementById('welcome').innerText = 'Welcome, '+username
+        fetchUsers()
+        connectSocket()
+        joinRoom()
+      } else {
+        document.getElementById('authError').innerText = data.error || 'Try again'
+      }
+    }
+
+    // ========== Chat Logic ==========
+    let socket;
+    function connectSocket() {
+      socket = io(api, {auth: {token}})
+      socket.on('connect', () => {})
+      socket.on('message', showMessage)
+      socket.on('disconnect', () => showSys("Disconnected from server"))
+    }
+    function showMessage({user, message}) {
+      const me = user===usernameGlobal
+      const div = document.createElement('div')
+      div.className = 'message' + (me?' self':'')
+      div.innerHTML = `<div class="bubble">${message}</div>
+      <span class="meta">${me?'You':user || 'Anonymous'}</span>`
+      document.getElementById('chatArea').appendChild(div)
+      document.getElementById('chatArea').scrollTop = document.getElementById('chatArea').scrollHeight
+    }
+    function showSys(msg) {
+      const div = document.createElement('div')
+      div.className='meta'; div.innerText=msg
+      document.getElementById('chatArea').appendChild(div)
+    }
+
+    // Send message
+    document.getElementById('msgForm').onsubmit = function(e) {
+      e.preventDefault()
+      const msg = document.getElementById('msgInput').value
+      const roomId = document.getElementById('roomId').value
+      socket.emit('chatMessage',{roomId,message:msg})
+      document.getElementById('msgInput').value = ''
+    }
+    function joinRoom() {
+      const roomId = document.getElementById('roomId').value
+      document.getElementById('chatArea').innerHTML = ''
+      socket.emit('joinRoom',{roomId})
+      fetch(api+'/api/messages/'+roomId,{
+        headers:{'Authorization':'Bearer '+token}
+      })
+      .then(r=>r.json())
+      .then(msgs=>msgs.forEach(m=>showMessage({user:m.user?.username||"User",message:m.content})))
+    }
+
+    // Get users
+    async function fetchUsers() {
+      let res = await fetch(api + '/api/users/', {
+        headers: {'Authorization':'Bearer ' + token}
+      })
+      let data = await res.json()
+      let html = ""
+      data.forEach(u => { html += "<li>" + u.username + "</li>" })
+      document.getElementById('userList').innerHTML = html
+    }
+  </script>
+</body>
+</html>
